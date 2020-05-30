@@ -30,9 +30,9 @@ class BarParams():
         self.probe_sz = size
         self.dir = 'y'
         self.probe_w = size[0]  # [actuator coordinates] width of the probe (image plane coords?)
-        self.probe_h = 1  # [actuator coordinates] height of the probe (image plane coords?)
-        self.probe_center = [-22,-15]  # [actuator coordinates] center position of the probe
-        self.probe_amp = 0.050  # [m] probe amplitude in um, scale should be in units of actuator height limits
+        self.probe_h = size[1]  # [actuator coordinates] height of the probe (image plane coords?)
+        self.probe_center = [-0,-0]  # [actuator coordinates] center position of the probe
+        self.probe_amp = 0.20  # [m] probe amplitude in um, scale should be in units of actuator height limits
 
         # Probe Motion
         self.phs_intervals = np.pi / 4  # [rad] phase interval over [0, 2pi]
@@ -104,7 +104,7 @@ def MEC_ISIO():
 
     # Create Probe
     # for loop here?
-    probe = beambar(bp, dir=bp.dir, center=bp.probe_center, debug=False)
+    probe = beambar(bp, dir=bp.dir, center=bp.probe_center, debug=True)
 
     # Apply Probe
     MECshm.set_data(probe)
@@ -140,7 +140,7 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
     if dir == 'horz' or dir == 'x':
         probe = bp.probe_amp * np.sinc(bp.probe_w * X)
     elif dir == 'vert' or dir == 'y':
-        probe = bp.probe_amp * np.sinc(bp.probe_w * Y)
+        probe = bp.probe_amp * np.sinc(bp.probe_h * Y)
     else:
         raise ValueError("Direction must be 'vert' or 'horz' or 'x' or 'y'")
     # dprint(f"CDI Probe: Min={np.min(probe)*1e9:.2f} nm, Max={np.max(probe)*1e9:.2f} nm")
