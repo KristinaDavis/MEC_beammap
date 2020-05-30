@@ -21,7 +21,7 @@ import warnings
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from pyMilk.interfacing.isio_shmlib import SHM
-# from falco import ctrl, dm, config
+
 
 class BarParams():
     def __init__(self, size=[50,50]):
