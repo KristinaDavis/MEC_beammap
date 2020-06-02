@@ -14,33 +14,10 @@ https://github.com/milk-org/pyMilk
 or else in the SHM code itself
 https://github.com/milk-org/pyMilk/blob/master/pyMilk/interfacing/isio_shmlib.py
 
-
 """
 import numpy as np
-import warnings
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from pyMilk.interfacing.isio_shmlib import SHM
-
-
-class BarParams():
-    def __init__(self, size=[50,50]):
-        # Probe Dimensions (extent in pupil plane coordinates)
-        # pairwise probes documented in Give'on et al 2011 doi: 10.1117/12.895117
-        self.probe_sz = size
-        self.dir = 'y'
-        self.probe_w = size[0]  # [actuator coordinates] width of the probe (image plane coords?)
-        self.probe_h = size[1]  # [actuator coordinates] height of the probe (image plane coords?)
-        self.probe_center = [-0,-0]  # [actuator coordinates] center position of the probe
-        self.probe_amp = 0.20  # [m] probe amplitude in um, scale should be in units of actuator height limits
-
-        # Probe Motion
-        self.phs_intervals = np.pi / 4  # [rad] phase interval over [0, 2pi]
-        self.phase_list = np.arange(0, 2 * np.pi, self.phs_intervals)  # FYI not inclusive of 2pi endpoint
-        self.n_probes = len(self.phase_list)  # number of phase probes
-        self.phase_integration_time = 0.01  # [s]
-        self.null_time = 0.1  # [s]
-        self.probe_type = "pairwise"
 
 
 class ShmParams():
@@ -74,6 +51,18 @@ class ShmParams():
         self.shm_buffer = np.empty((50, 50), dtype=np.float32)  # this is where the probe pattern goes, so allocate the appropriate size
         self.location = -1  # -1 for CPU RAM, >= 0 provides the # of the GPU.
         self.shared = True  # if true then a shared memory buffer is allocated. If false, only local storage is used.
+
+
+class BarParams():
+    def __init__(self, size=[50,50]):
+        # Probe Dimensions (extent in pupil plane coordinates)
+        # pairwise probes documented in Give'on et al 2011 doi: 10.1117/12.895117
+        self.probe_sz = size
+        self.dir = 'x'
+        self.probe_w = size[0]  # [actuator coordinates] width of the probe (image plane coords?)
+        self.probe_h = size[1] # [actuator coordinates] height of the probe (image plane coords?)
+        self.probe_center = [0,25]  # [actuator coordinates] center position of the probe
+        self.probe_amp = 0.20  # [m] probe amplitude in um, scale should be in units of actuator height limits
 
 
 class AppliedProbe():
@@ -121,49 +110,62 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
     """
     create a 2D pupil plane pattern that will produce a focal plane bar, either vertical or horizontal
 
-    The probe applied to the DM to achieve CDI is that originally proposed in Giv'on et al 2011, doi: 10.1117/12.895117;
-    and was used with proper in Matthews et al 2018, doi:  10.1117/1.JATIS.3.4.045001.
+    There are 2 modes of the beambar that we will use for beammapping MEC. The first mode is to have a single bar
+    in the center of the focal plane (then scan this with the conex mirror). This is achieved by a sinc function
+    on the DM, and you can automatically generate this by setting the center coordinate to zero in the direction
+    of the bar (either vert/horz or x/y) to 0. If the center coordinate is not zero, then you enter in the
+    coordinate that you want to offset the bar's position from center, in actuator coordinate units. For our purposes,
+    if you want to have the bar be located at either end of the focal plane, set the center coordinate to be
+    n_actuators/2 which is +/-25 for SCExAO.
 
-    All that is to say, we apply the CDI probe using the coordinates of the DM actuators,
-    and supply the probe height as an additive height to the DM map, which is passed to the prop_dm function.
+    The probe applied to the DM to achieve a bar symmetrically split on either side of the DM is that originally
+    proposed for pairwise probing (CDI and EFC) in Giv'on et al 2011, doi: 10.1117/12.895117 and was used
+    with proper in Matthews et al 2018, doi:  10.1117/1.JATIS.3.4.045001.
 
+    :param bp: the class instance of BarParams, which holds all the user-defined attributes of the bar
+    :param dir: direction of the bar, either 'horz' 'vert' 'x' 'y'
     :param center: tuple of center coordinates (in pupil actuators) to create the bar
     :return: 2D map of DM coordinates to create the bar
     """
     # Convert actuator centering to pupil plane coords
     cent = np.array(center)/bp.probe_sz
 
-    x = np.linspace(-1/2+cent[0], 1/2+cent[0], bp.probe_sz[0], dtype=np.float32)
-    y = np.linspace(-1/2+cent[1], 1/2+cent[1], bp.probe_sz[1], dtype=np.float32)
+    x = np.linspace(-1/2, 1/2, bp.probe_sz[0], dtype=np.float32)
+    y = np.linspace(-1/2, 1/2, bp.probe_sz[1], dtype=np.float32)
     X,Y = np.meshgrid(x, y)
 
-    if dir == 'horz' or dir == 'x':
+    if dir == 'horz' or dir == 'x' and cent[0] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_w * X)
-    elif dir == 'vert' or dir == 'y':
+    elif dir == 'horz' or dir == 'x' and cent[0] != 0:
+        probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) * np.sin(2*np.pi*cent[0]*X)
+    elif dir == 'vert' or dir == 'y' and cent[1] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_h * Y)
+    elif dir == 'vert' or dir == 'y' and cent[1] != 0:
+        # probe = sig.sawtooth(Y) * np.sin(2*np.pi*cent[1]*Y)
+        probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) * np.sin(2*np.pi*cent[1]*Y)
     else:
         raise ValueError("Direction must be 'vert' or 'horz' or 'x' or 'y'")
-    # dprint(f"CDI Probe: Min={np.min(probe)*1e9:.2f} nm, Max={np.max(probe)*1e9:.2f} nm")
 
     # Testing FF propagation
     if debug is True:
-        print(f"probe dtype is {probe.dtype}")
         probe_ft = (1/np.sqrt(2*np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(probe)))
-        # probe_ft = 2*np.pi * np.fft.fftshift(np.fft.fft2((probe)))
 
         fig, ax = plt.subplots(1,3, figsize=(12, 5))
         fig.subplots_adjust(wspace=0.5)
         ax1, ax2, ax3 = ax.flatten()
 
+        fig.suptitle(f"bp.probe_amp * np.sinc(bp.probe_h * Y)")
+
         im1 = ax1.imshow(probe, interpolation='none', origin='lower')
         ax1.set_title(f"Probe on DM \n(dm coordinates)")
         cb = fig.colorbar(im1, ax=ax1)
 
-        ax2.imshow(np.sqrt(probe_ft.imag**2 + probe_ft.real**2), interpolation='none', origin='lower')
-        ax2.set_title("Focal Plane Amplitude of Probe")
+        im2 = ax2.imshow(np.sqrt(probe_ft.imag**2 + probe_ft.real**2), interpolation='none', origin='lower')
+        ax2.set_title("Focal Plane Amplitude")
+        cb = fig.colorbar(im2, ax=ax2)
 
-        ax3.imshow(np.arctan2(probe_ft.imag, probe_ft.real), interpolation='none', origin='lower')
-        ax3.set_title("Focal Plane Phase of Probe")
+        ax3.imshow(np.arctan2(probe_ft.imag, probe_ft.real), interpolation='none', origin='lower', cmap='hsv')
+        ax3.set_title("Focal Plane Phase")
 
         # ax1.imshow(probe_ft.real, interpolation='none', origin='lower')
         # ax1.set_title(f"Real FFT probe, " + r'$\theta$' )  # + f"={bp.phase_list/np.pi:.2f}" + r'$\pi$'
@@ -177,52 +179,27 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
     return probe
 
 
-def move_bar():
+def new_shm():
     """
-    generate a new probe pattern as a series of steps across the DM surface
+    creates a new shm
+    WARNING: don't actually use this on the scexao_rtc. Use this to test on your own machine. default location
+    is in /tmp/
 
-    :return: phase_list  array of phases to use in CDI probes
+    :return: img-- the image struct
     """
-    phase_series = np.zeros(sp.numframes) * np.nan
+    import ImageStreamIOWrap as ISIO
 
-    # Repeating Probe Phases for Integration time
-    if bp.phase_integration_time > sp.sample_time:
-        phase_hold = bp.phase_integration_time / sp.sample_time
-        phase_1cycle = np.repeat(bp.phase_list, phase_hold)
-    elif bp.phase_integration_time == sp.sample_time:
-        phase_1cycle = bp.phase_list
-    else:
-        raise ValueError(f"Cannot have CDI phase probe integration time less than sp.sample_time")
+    sp = ShmParams()
 
-    # Repeating Cycle of Phase Probes for Simulation Duration
-    full_simulation_time = sp.numframes * sp.sample_time
-    time_for_one_cycle = len(phase_1cycle) * bp.phase_integration_time + bp.null_time
-    n_phase_cycles = full_simulation_time / time_for_one_cycle
-    print(f"number of phase cycles = {n_phase_cycles}")
-    if n_phase_cycles < 0.5:
-        if bp.n_probes > sp.numframes:
-            warnings.warn(f"Number of timesteps in sp.numframes is less than number of CDI phases \n"
-                          f"not all phases will be used")
-            phase_series = phase_1cycle[0:sp.numframes]
-        else:
-            warnings.warn(f"Total length of CDI integration time for all phase probes exceeds full simulation time \n"
-                          f"Not all phase probes will be used")
-            phase_series = phase_1cycle[0:sp.numframes]
-    elif 0.5 < n_phase_cycles < 1:
-        phase_series[0:len(phase_1cycle)] = phase_1cycle
-        print(f"phase_seris  = {phase_series}")
-    else:
-        n_full = np.floor(n_phase_cycles)
-        raise NotImplementedError(f"Whoa, not implemented yet. Hang in there")
-        # TODO implement
+    img = ISIO.Image()
+    img.create(sp.shm_name, sp.shm_buffer, sp.location, sp.shared)
 
-    return phase_series
+    return img
 
 
-
-def config_shm(shm_name="MECshm"):
+def example_shm(shm_name="MECshm"):
     """
-    configures the shared memory buffer to write 2D images to CACAO
+    example from the isio.shm README found on github
 
     :param shm_name: name of the shared memory buffer (default is MECshm)
     :return: the struct that contains the shared memory buffer
@@ -253,12 +230,8 @@ def config_shm(shm_name="MECshm"):
     return MECshm
 
 
-
 if __name__ == '__main__':
     print(f"Testing probe")
-    # bp = BarParams()
-    # beambar(bp, center=(0,0), debug=True)
-
     MEC_ISIO()
 
 """
