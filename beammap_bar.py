@@ -61,8 +61,8 @@ class BarParams():
         self.dir = 'vert'
         self.probe_w = size[0]  # [actuator coordinates] width of the probe (image plane coords?)
         self.probe_h = size[1]  # [actuator coordinates] height of the probe (image plane coords?)
-        self.probe_center = [14,10]  # [actuator coordinates] center position of the probe
-        self.probe_amp = 0.20  # [m] probe amplitude in um, scale should be in units of actuator height limits
+        self.probe_center = [0,0]  # [actuator coordinates] center position of the probe
+        self.probe_amp = 0.10  # [m] probe amplitude in um, scale should be in units of actuator height limits
         self.theta = 0
 
 
@@ -141,7 +141,7 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
         bp.probe_h = 1
         probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) \
                 * np.sin(2*np.pi*center[0]*Y + bp.theta)
-    elif dir == 'vert' and center[0] == 0 or dir == 'y' and center[1] == 0:
+    elif dir == 'vert' and center[1] == 0 or dir == 'y' and center[1] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_h * Y)
         print(f'help theres an error, center[1] = {center[1]}')
     elif dir == 'vert' and center[1] != 0 or dir == 'y' and center[1] != 0:
