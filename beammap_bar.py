@@ -58,20 +58,22 @@ class BarParams():
         # Probe Dimensions (extent in pupil plane coordinates)
         # pairwise probes documented in Give'on et al 2011 doi: 10.1117/12.895117
         self.probe_sz = size
-        self.dir = 'x'
+        self.dir = 'vert'
         self.probe_w = size[0]  # [actuator coordinates] width of the probe (image plane coords?)
-        self.probe_h = size[1] # [actuator coordinates] height of the probe (image plane coords?)
-        self.probe_center = [0,25]  # [actuator coordinates] center position of the probe
+        self.probe_h = size[1]  # [actuator coordinates] height of the probe (image plane coords?)
+        self.probe_center = [14,10]  # [actuator coordinates] center position of the probe
         self.probe_amp = 0.20  # [m] probe amplitude in um, scale should be in units of actuator height limits
+        self.theta = 0
 
 
-class AppliedProbe():
+class AppliedProbe:
     """
     way to save probes. perhaps unnecessary, or convert to an array of instances of img
     """
     def __init__(self, bp, probe, time):
         self.probe = probe
         self.tstamp = time
+        self.bar_params = bp
 
 
 def MEC_ISIO():
@@ -127,22 +129,26 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
     :param center: tuple of center coordinates (in pupil actuators) to create the bar
     :return: 2D map of DM coordinates to create the bar
     """
-    # Convert actuator centering to pupil plane coords
-    cent = np.array(center)/bp.probe_sz
-
+    # Setting up coordinate system (in units of DM actuators)
     x = np.linspace(-1/2, 1/2, bp.probe_sz[0], dtype=np.float32)
     y = np.linspace(-1/2, 1/2, bp.probe_sz[1], dtype=np.float32)
     X,Y = np.meshgrid(x, y)
 
-    if dir == 'horz' or dir == 'x' and cent[0] == 0:
+    # Selecting probe type based on direction and single or double bar
+    if dir == 'horz' and center[0] == 0 or dir == 'x' and center[0] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_w * X)
-    elif dir == 'horz' or dir == 'x' and cent[0] != 0:
-        probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) * np.sin(2*np.pi*cent[0]*X)
-    elif dir == 'vert' or dir == 'y' and cent[1] == 0:
+    elif dir == 'horz' and center[0] != 0 or dir == 'x'and center[0] != 0:
+        bp.probe_h = 1
+        probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) \
+                * np.sin(2*np.pi*center[0]*Y + bp.theta)
+    elif dir == 'vert' and center[0] == 0 or dir == 'y' and center[1] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_h * Y)
-    elif dir == 'vert' or dir == 'y' and cent[1] != 0:
+        print(f'help theres an error, center[1] = {center[1]}')
+    elif dir == 'vert' and center[1] != 0 or dir == 'y' and center[1] != 0:
         # probe = sig.sawtooth(Y) * np.sin(2*np.pi*cent[1]*Y)
-        probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) * np.sin(2*np.pi*cent[1]*Y)
+        bp.probe_w = 1
+        probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) \
+                * np.sin(2*np.pi*center[1]*X + bp.theta)
     else:
         raise ValueError("Direction must be 'vert' or 'horz' or 'x' or 'y'")
 
