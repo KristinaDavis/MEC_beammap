@@ -58,7 +58,7 @@ class BarParams():
         # Probe Dimensions (extent in pupil plane coordinates)
         # pairwise probes documented in Give'on et al 2011 doi: 10.1117/12.895117
         self.probe_sz = size
-        self.dir = 'vert'
+        self.dir = 'horz'
         self.probe_w = size[0]  # [actuator coordinates] width of the probe (image plane coords?)
         self.probe_h = size[1]  # [actuator coordinates] height of the probe (image plane coords?)
         self.probe_center = [0,0]  # [actuator coordinates] center position of the probe
@@ -135,20 +135,20 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
     X,Y = np.meshgrid(x, y)
 
     # Selecting probe type based on direction and single or double bar
-    if dir == 'horz' and center[0] == 0 or dir == 'x' and center[0] == 0:
+    if dir == 'horz' and center[1] == 0 or dir == 'x' and center[1] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_w * X)
-    elif dir == 'horz' and center[0] != 0 or dir == 'x'and center[0] != 0:
+    elif dir == 'horz' and center[1] != 0 or dir == 'x' and center[1] != 0:
         bp.probe_h = 1
         probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) \
-                * np.sin(2*np.pi*center[0]*Y + bp.theta)
-    elif dir == 'vert' and center[1] == 0 or dir == 'y' and center[1] == 0:
+                * np.sin(2*np.pi*center[1]*Y + bp.theta)
+    elif dir == 'vert' and center[0] == 0 or dir == 'y' and center[0] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_h * Y)
         print(f'help theres an error, center[1] = {center[1]}')
-    elif dir == 'vert' and center[1] != 0 or dir == 'y' and center[1] != 0:
+    elif dir == 'vert' and center[0] != 0 or dir == 'y' and center[0] != 0:
         # probe = sig.sawtooth(Y) * np.sin(2*np.pi*cent[1]*Y)
         bp.probe_w = 1
         probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) \
-                * np.sin(2*np.pi*center[1]*X + bp.theta)
+                * np.sin(2*np.pi*center[0]*X + bp.theta)
     else:
         raise ValueError("Direction must be 'vert' or 'horz' or 'x' or 'y'")
 
