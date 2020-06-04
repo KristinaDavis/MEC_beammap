@@ -96,7 +96,7 @@ def MEC_ISIO():
 
     # Create Probe
     bp = BarParams(data.shape)  # import settings
-    probe = beambar(bp, dir=bp.dir, center=bp.probe_center, debug=bp.debug)  # create probe pattern
+    probe = beambar(bp, line_dir=bp.dir, center=bp.probe_center, debug=bp.debug)  # create probe pattern
     MECshm.set_data(probe)  # Apply Probe
     t_sent = MECshm.IMAGE.md.lastaccesstime      # Read Time
 
@@ -141,7 +141,7 @@ def beambar(bp, line_dir='x', center=[0,0], debug=False):
                 * np.sin(2*np.pi*center[1]*Y + bp.theta)
     elif line_dir == 'vert' and center[0] == 0 or line_dir == 'y' and center[0] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_h * Y)
-        print(f'help theres an error, center[1] = {center[1]}')
+        # print(f'help theres an error, center[1] = {center[1]}')
     elif line_dir == 'vert' and center[0] != 0 or line_dir == 'y' and center[0] != 0:
         # probe = sig.sawtooth(Y) * np.sin(2*np.pi*cent[1]*Y)
         bp.probe_w = 1
