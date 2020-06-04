@@ -9,7 +9,7 @@ This module creates the 2D DM maps to be sent to the shared memory buffer of CAC
 pyMilk library, specifically the SHM module. SHM then interfaces with the  ImageStreamIOWrap sub-module, which
 does the bulk of the cython-python formatting of numpy into the correct C-type struct.
 
-Most of the functionality for pymik can be found on the README
+Most of the functionality for pyMilk can be found on the README
 https://github.com/milk-org/pyMilk
 or else in the SHM code itself
 https://github.com/milk-org/pyMilk/blob/master/pyMilk/interfacing/isio_shmlib.py
@@ -63,7 +63,7 @@ class BarParams():
         self.probe_h = size[1]  # [actuator coordinates] height of the probe (image plane coords?)
         self.probe_center = [0,0]  # [actuator coordinates] center position of the probe
         self.probe_amp = 0.10  # [m] probe amplitude in um, scale should be in units of actuator height limits
-        self.theta = 0
+        self.debug = False
 
 
 class AppliedProbe:
@@ -78,29 +78,27 @@ class AppliedProbe:
 
 def MEC_ISIO():
     """
-    structures the 2D DM probe in a CACAO-readable structure.
+    interfaces with the shared memory buffer of remote DM
 
+    Here we create the interface between the shm and this code to apply new offsets for the remote DM. The interfacing
+    is handled by pyMILK found https://github.com/milk-org/pyMilk. We also create the probe by calling beambar, and
+    send that offset map to the shm. We read in the time the probe pattern was applied. Functinality exists to save
+    the probe pattern and timestamp together, but it is unused for beammapping on MEC as of 6/4/20 so it is currently
+    unused.
 
-
-    :return:
+    :return: nothing explicitly returned but probe is applied (will persist on DM until it is externally cleared,
+            eg by the RTC computer on SCExAO). Saving capability not currently implemented.
     """
-    # Create settings instance
+    # Create shared memory (shm) interface
     sp = ShmParams()
-
-    # Create Shared Memory Struct
-    MECshm = SHM(sp.shm_name)
-    data = MECshm.get_data()
-
-    bp = BarParams(data.shape)
+    MECshm = SHM(sp.shm_name)  # create c-type interface using pyMilk's ISIO wrapper
+    data = MECshm.get_data()  # used to determine size of struct (removes chance of creating wrong probe size)
 
     # Create Probe
-    # for loop here?
-    probe = beambar(bp, dir=bp.dir, center=bp.probe_center, debug=True)
-
-    # Apply Probe
-    MECshm.set_data(probe)
-    # Read Time
-    t_sent = MECshm.IMAGE.md.lastaccesstime
+    bp = BarParams(data.shape)  # import settings
+    probe = beambar(bp, dir=bp.dir, center=bp.probe_center, debug=bp.debug)  # create probe pattern
+    MECshm.set_data(probe)  # Apply Probe
+    t_sent = MECshm.IMAGE.md.lastaccesstime      # Read Time
 
     # Saving Probe and timestamp together
     ap = AppliedProbe(bp, probe, t_sent)
@@ -108,7 +106,7 @@ def MEC_ISIO():
     return MECshm
 
 
-def beambar(bp, dir='x', center=[0,0], debug=False):
+def beambar(bp, line_dir='x', center=[0,0], debug=False):
     """
     create a 2D pupil plane pattern that will produce a focal plane bar, either vertical or horizontal
 
@@ -135,16 +133,16 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
     X,Y = np.meshgrid(x, y)
 
     # Selecting probe type based on direction and single or double bar
-    if dir == 'horz' and center[1] == 0 or dir == 'x' and center[1] == 0:
+    if line_dir == 'horz' and center[1] == 0 or line_dir == 'x' and center[1] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_w * X)
-    elif dir == 'horz' and center[1] != 0 or dir == 'x' and center[1] != 0:
+    elif line_dir == 'horz' and center[1] != 0 or line_dir == 'x' and center[1] != 0:
         bp.probe_h = 1
         probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) \
                 * np.sin(2*np.pi*center[1]*Y + bp.theta)
-    elif dir == 'vert' and center[0] == 0 or dir == 'y' and center[0] == 0:
+    elif line_dir == 'vert' and center[0] == 0 or line_dir == 'y' and center[0] == 0:
         probe = bp.probe_amp * np.sinc(bp.probe_h * Y)
         print(f'help theres an error, center[1] = {center[1]}')
-    elif dir == 'vert' and center[0] != 0 or dir == 'y' and center[0] != 0:
+    elif line_dir == 'vert' and center[0] != 0 or line_dir == 'y' and center[0] != 0:
         # probe = sig.sawtooth(Y) * np.sin(2*np.pi*cent[1]*Y)
         bp.probe_w = 1
         probe = bp.probe_amp * np.sinc(bp.probe_w * X) * np.sinc(bp.probe_h * Y) \
@@ -160,7 +158,7 @@ def beambar(bp, dir='x', center=[0,0], debug=False):
         fig.subplots_adjust(wspace=0.5)
         ax1, ax2, ax3 = ax.flatten()
 
-        fig.suptitle(f"bp.probe_amp * np.sinc(bp.probe_h * Y)")
+        # fig.suptitle(f"bp.probe_amp * np.sinc(bp.probe_h * Y)")
 
         im1 = ax1.imshow(probe, interpolation='none', origin='lower')
         ax1.set_title(f"Probe on DM \n(dm coordinates)")
