@@ -58,7 +58,7 @@ class BarParams():
         # Probe Dimensions (extent in pupil plane coordinates)
         # pairwise probes documented in Give'on et al 2011 doi: 10.1117/12.895117
         self.probe_sz = size
-        self.dir = 'horz'
+        self.dir = 'horz'  # either 'horz' or 'vert', determines the direction of the bar in the focal plane
         self.probe_w = size[0]  # [actuator coordinates] width of the probe (image plane coords?)
         self.probe_h = size[1]  # [actuator coordinates] height of the probe (image plane coords?)
         self.probe_center = [0,0]  # [actuator coordinates] center position of the probe
