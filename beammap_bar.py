@@ -53,7 +53,7 @@ class ShmParams():
         self.shared = True  # if true then a shared memory buffer is allocated. If false, only local storage is used.
 
 
-class BarParams():
+class BarParams:
     def __init__(self, size=[50,50]):
         # Probe Dimensions (extent in pupil plane coordinates)
         # pairwise probes documented in Give'on et al 2011 doi: 10.1117/12.895117
@@ -306,7 +306,5 @@ Methods
     getsemwatindex
     semwait
     semtimedwait
-
-
 
 """
